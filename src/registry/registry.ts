@@ -1,50 +1,58 @@
-import express, { Request, Response } from "express";
 import bodyParser from "body-parser";
-import { REGISTRY_PORT } from "../config";
+import express from "express";
+import {REGISTRY_PORT} from "../config";
 
 export type Node = {
-  nodeId: number;
-  pubKey: string;
+    nodeId: number;
+    pubKey: string
 };
 
 export type RegisterNodeBody = {
-  nodeId: number;
-  pubKey: string;
+    nodeId: number;
+    pubKey: string;
 };
 
 export type GetNodeRegistryBody = {
-  nodes: Node[];
+    nodes: Node[];
+};
+
+const nodeRegistry: GetNodeRegistryBody = {
+    nodes: [],
 };
 
 export async function launchRegistry() {
-  const app = express();
-  app.use(express.json());
-  app.use(bodyParser.json());
+    const _registry = express();
+    _registry.use(express.json());
+    _registry.use(bodyParser.json());
 
-  // On définit la route pour le statut du Registre
-  app.get("/status", (req, res) => {
-    res.send("live");
-  });
+    _registry.get("/status", (_, res) => {
+        res.status(200).send("live");
+    });
 
-  // On initialise une variable qui coontiendra tous les noeuds : le registre
-  let nodesRegistry: Node[] = [];
+    // Register a node: if the node is not already registered, add it to the registry
+    _registry.post("/registerNode", async (req, res) => {
+        try {
+            console.log("Registering node...");
+            const {nodeId, pubKey} = req.body as RegisterNodeBody;
+            if (!nodeRegistry.nodes.find((n) => n.nodeId === nodeId))
+                nodeRegistry.nodes.push({nodeId, pubKey});
+            res.status(200).send("Node registered");
+        } catch (error) {
+            res.status(500).send("Internal server error");
+        }
+    });
 
-  // On définis la route pour enregistrer un noeud
-  app.post("/registerNode", (req: Request, res: Response) => {
-    const { nodeId, pubKey }: { nodeId: number; pubKey: string } = req.body;
-    nodesRegistry.push({ nodeId, pubKey });
-    res.status(200).send("Node registered successfully");
-  });
+    // Get the whole node registry
+    _registry.get("/getNodeRegistry", (_, res) => {
+        try {
+            console.log("Getting node registry...");
+            res.status(200).send(nodeRegistry);
+        } catch (error) {
+            res.status(500).send("Internal server error");
+        }
+    });
 
-  // Ici on définit la route pour obtenir le registre des noeuds
-  app.get("/getNodeRegistry", (req, res) => {
-    res.json({ nodes: nodesRegistry });
-  });
-
-  // Finalement on peut démarer le serveur Registry
-  const server = app.listen(REGISTRY_PORT, () => {
-    console.log(`Registry is listening on port ${REGISTRY_PORT}`);
-  });
-
-  return server;
+    return _registry.listen(REGISTRY_PORT, () => {
+        console.log(`registry is listening on port ${REGISTRY_PORT}`);
+    });
 }
